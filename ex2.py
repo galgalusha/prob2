@@ -1,4 +1,5 @@
 import sys
+import math
 from collections import Counter
 from file_utils import read_file_lines, write_outputs_to_file, Output
 
@@ -22,6 +23,7 @@ class Sample:
         self.events = events
         self.size = len(events)
         self.dict: dict[str, int] = make_dict(events)
+        self.vocab_size = VOCAB_SIZE
 
     def unique_events_count(self):
         return len(self.dict.keys())
@@ -29,8 +31,20 @@ class Sample:
     def count_word(self, word: str) -> int:
         return self.dict.get(word, 0)
     
-    def mle(self, word: str) -> int:
+    def mle(self, word: str) -> float:
         return self.dict.get(word, 0) / self.size
+    
+    def lidstone_mle(self, word: str, _lambda: float) -> float:
+        return (self.dict.get(word, 0) + _lambda) / (self.size + _lambda * self.vocab_size)
+
+
+def perplexity(sample: Sample, prob_func) -> float:
+    log_sum = 0
+    for word in sample.events:
+        prob = prob_func(word)
+        if prob > 0:
+            log_sum += -math.log2(prob)    
+    return 2 ** (log_sum / sample.size)    
 
 # Parse command line arguments
 if len(sys.argv) != 5:
@@ -71,6 +85,10 @@ outputs.append(Output(10, [str(training_set.unique_events_count())]))
 outputs.append(Output(11, [str(training_set.count_word(input_word))]))
 outputs.append(Output(12, [str(training_set.mle(input_word))]))
 outputs.append(Output(13, [str(training_set.mle('unseen-word'))]))
-
+outputs.append(Output(14, [str(training_set.lidstone_mle(input_word, 0.1))]))
+outputs.append(Output(15, [str(training_set.lidstone_mle('unseen-word', 0.1))]))
+outputs.append(Output(16, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.01)))]))
+outputs.append(Output(17, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.1)))]))
+outputs.append(Output(18, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 1)))]))
 
 write_outputs_to_file(output_file_name, outputs)
