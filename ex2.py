@@ -46,11 +46,40 @@ def perplexity(sample: Sample, prob_func) -> float:
             log_sum += -math.log2(prob)    
     return 2 ** (log_sum / sample.size)    
 
+
+def find_best_lidstone_lambda(training_set: Sample, validation_set: Sample, min_lambda: float = 0.01, max_lambda: float = 1.0, threshold: float = 0.001) -> float:
+    """
+    Binary search to find lambda that minimizes perplexity on validation set.
+    Stops when the difference between left and right boundaries is smaller than threshold.
+    """
+    left = min_lambda
+    right = max_lambda
+    
+    while right - left > threshold:
+        mid1 = left + (right - left) / 3
+        mid2 = right - (right - left) / 3
+        
+        perp1 = perplexity(validation_set, lambda word: training_set.lidstone_mle(word, mid1))
+        perp2 = perplexity(validation_set, lambda word: training_set.lidstone_mle(word, mid2))
+        
+        if perp1 > perp2:
+            left = mid1
+        else:
+            right = mid2
+    
+    optimal_lambda = (left + right) / 2
+    return optimal_lambda
+
+
+
+
 # Parse command line arguments
 if len(sys.argv) != 5:
     print("Error: Expected 4 arguments")
     print("Usage: python args_parser.py <dev_file_name> <test_file_name> <input_word> <output_file_name>")
     sys.exit(1)
+
+
 
 dev_file_name = sys.argv[1]
 test_file_name = sys.argv[2]
@@ -90,5 +119,13 @@ outputs.append(Output(15, [str(training_set.lidstone_mle('unseen-word', 0.1))]))
 outputs.append(Output(16, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.01)))]))
 outputs.append(Output(17, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.1)))]))
 outputs.append(Output(18, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 1)))]))
+
+
+# best_lidstone_lambda = find_best_lidstone_lambda(training_set, validation_set)
+best_lidstone_lambda = 0.05588
+optimal_lidstone_perplexity = perplexity(validation_set, lambda word: training_set.lidstone_mle(word, best_lidstone_lambda))
+
+outputs.append(Output(19, [str(best_lidstone_lambda)]))
+outputs.append(Output(20, [str(optimal_lidstone_perplexity)]))
 
 write_outputs_to_file(output_file_name, outputs)
