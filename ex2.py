@@ -41,17 +41,28 @@ class HeldOutModel:
     def __init__(self, training_set: Sample, held_out_set: Sample):
         self.training_set = training_set
         self.held_out_set = held_out_set
-        self.r_to_Nr: dict[int, int] = {}
+        self.count_to_words: dict[int, list[str]] = {}
         for word, count in training_set.dict.items():
-            if count not in self.r_to_Nr:
-                self.r_to_Nr[count] = 0
-            self.r_to_Nr[count] += 1
-        self.r_to_Nr[0] = VOCAB_SIZE - len(self.training_set.dict.keys())
-        # self.held_out_count_to_word = {count: word for word, count in held_out_set.dict.items()}
+            words = self.count_to_words.get(count, [])
+            words.append(word)
+            self.count_to_words[count] = words
 
-    def prob(self, word: str) -> float:
-        r = self.training_set.count_word(word)
-        Nr = self.r_to_Nr[r]
+        self.N0 = VOCAB_SIZE - len(self.training_set.dict.keys())
+        
+        unseen_in_training = [word for word in held_out_set.dict.keys() if word not in training_set.dict]
+        self.t0 = sum(held_out_set.dict[word] for word in unseen_in_training)
+        
+
+    def prob(self, training_word: str) -> float:
+        r = self.training_set.count_word(training_word)
+        if r == 0:
+            return (self.t0 / self.N0) / self.held_out_set.size
+        training_words_with_r = self.count_to_words[r]
+        Nr = len(training_words_with_r)
+        Tr = 0
+        for training_word in training_words_with_r:
+            Tr += self.held_out_set.count_word(training_word)
+        return Tr / (Nr * self.held_out_set.size)
 
 
 def perplexity(sample: Sample, prob_func) -> float:
@@ -160,12 +171,13 @@ num_of_50_percent = round(len(dev_words) / 2)
 
 training_set = Sample(dev_words[:num_of_50_percent])
 held_out_set = Sample(dev_words[num_of_50_percent:])
+held_out_model = HeldOutModel(training_set, held_out_set)
 
 outputs.append(Output(21, [str(training_set.size)]))
 outputs.append(Output(22, [str(held_out_set.size)]))
+outputs.append(Output(23, [str(held_out_model.prob(input_word))]))
+outputs.append(Output(23, [str(held_out_model.prob('unseen-word'))]))
 
-def heldout_prob(training: Sample, held_out: Sample, word: str) -> float:
-    r = tra
 
 
 write_outputs_to_file(output_file_name, outputs)
