@@ -94,13 +94,16 @@ def perplexity(sample: Sample, prob_func) -> float:
     return 2 ** (log_sum / sample.size)    
 
 
-def find_best_lidstone_lambda(training_set: Sample, validation_set: Sample, min_lambda: float = 0.01, max_lambda: float = 1.0, threshold: float = 0.001) -> float:
-    """
-    Binary search to find lambda that minimizes perplexity on validation set.
-    Stops when the difference between left and right boundaries is smaller than threshold.
-    """
-    left = min_lambda
-    right = max_lambda
+def find_best_lidstone_lambda(training_set: Sample, validation_set: Sample) -> float:
+    best_perp = float('inf')
+    best_lambda = 0
+    for x in range(1, 101):
+        _lambda = x / 100
+        perp = perplexity(validation_set, lambda word: training_set.lidstone_mle(word, _lambda))
+        if perp < best_perp:
+            best_perp = perp
+            best_lambda = _lambda
+    return best_lambda
     
     while right - left > threshold:
         mid1 = left + (right - left) / 3
@@ -174,10 +177,7 @@ outputs.append(Output(17, [str(perplexity(validation_set, lambda word: lidstone_
 outputs.append(Output(18, [str(perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, 1)))]))
 
 
-# best_lidstone_lambda = find_best_lidstone_lambda(lidstone_training_set, validation_set)
-# print(best_lidstone_lambda)
-
-best_lidstone_lambda = 0.06 # 0.056397
+best_lidstone_lambda = find_best_lidstone_lambda(lidstone_training_set, validation_set)
 test_lidstone_perplexity = perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, best_lidstone_lambda))
 
 outputs.append(Output(19, [str(best_lidstone_lambda)]))
