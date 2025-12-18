@@ -16,7 +16,7 @@ class Output:
 
 def write_outputs_to_file(file_name: str, outputs: list[Output]):
     with open(file_name, 'w') as f:
-        f.write("#Students Gal Koren 040459612 Ekaterina Plechova 345731764\n")
+        f.write("#Students\tGal Koren\t040459612\tEkaterina Plechova\t345731764\n")
         for output in outputs:
             if len(output.lines) == 1:
                 f.write(f"#Output{output.number}\t{output.lines[0]}\n")
