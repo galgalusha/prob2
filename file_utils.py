@@ -3,7 +3,7 @@ def read_file_lines(file_name: str) -> list[str]:
     with open(file_name, 'r') as f:
         for line in f:
             line = line.strip()
-            if not line.startswith('<') and line:
+            if not line.startswith('<TRAIN') and not line.startswith('<TEST') and line:
                 lines.append(line)
     return lines
 
