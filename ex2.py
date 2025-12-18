@@ -37,6 +37,14 @@ class Sample:
     def lidstone_mle(self, word: str, _lambda: float) -> float:
         return (self.dict.get(word, 0) + _lambda) / (self.size + _lambda * self.vocab_size)
 
+    def sum_probs(self, _lambda: float) -> float:
+        total = 0.0
+        for word in self.dict.keys():
+            total += self.lidstone_mle(word, _lambda)
+        N0 = self.vocab_size - len(self.dict.keys())
+        total += N0 * self.lidstone_mle('unseen-word', _lambda)
+        return total
+
 class HeldOutModel:
     def __init__(self, training_set: Sample, held_out_set: Sample):
         self.training_set = training_set
@@ -50,19 +58,31 @@ class HeldOutModel:
         self.N0 = VOCAB_SIZE - len(self.training_set.dict.keys())
         
         unseen_in_training = [word for word in held_out_set.dict.keys() if word not in training_set.dict]
-        self.t0 = sum(held_out_set.dict[word] for word in unseen_in_training)
-        
+        self.T0 = sum(held_out_set.dict[word] for word in unseen_in_training)
 
     def prob(self, training_word: str) -> float:
         r = self.training_set.count_word(training_word)
         if r == 0:
-            return (self.t0 / self.N0) / self.held_out_set.size
+            return (self.T0 / self.N0) / self.held_out_set.size
         training_words_with_r = self.count_to_words[r]
         Nr = len(training_words_with_r)
+        return self.Tr(r) / (Nr * self.held_out_set.size)
+
+    def Tr(self, r: int) -> float:
+        if r == 0: 
+            return self.T0
+        training_words_with_r = self.count_to_words[r]
         Tr = 0
         for training_word in training_words_with_r:
             Tr += self.held_out_set.count_word(training_word)
-        return Tr / (Nr * self.held_out_set.size)
+        return Tr
+
+    def sum_probs(self) -> float:
+        total = 0.0
+        for word in self.training_set.dict.keys():
+            total += self.prob(word)
+        total += self.N0 * self.prob('unseen-word')
+        return total
 
 
 def perplexity(sample: Sample, prob_func) -> float:
@@ -135,31 +155,33 @@ dev_words = split_to_words(dev_lines)
 
 num_of_90_percent = round(len(dev_words) * 0.9)
 
-training_set = Sample(dev_words[:num_of_90_percent])
+lidstone_training_set = Sample(dev_words[:num_of_90_percent])
 validation_set = Sample(dev_words[num_of_90_percent:])
 
 outputs.append(Output(7, [str(len(dev_words))]))
 outputs.append(Output(8, [str(validation_set.size)]))
-outputs.append(Output(9, [str(training_set.size)]))
+outputs.append(Output(9, [str(lidstone_training_set.size)]))
 
 
-outputs.append(Output(10, [str(training_set.unique_events_count())]))
-outputs.append(Output(11, [str(training_set.count_word(input_word))]))
-outputs.append(Output(12, [str(training_set.mle(input_word))]))
-outputs.append(Output(13, [str(training_set.mle('unseen-word'))]))
-outputs.append(Output(14, [str(training_set.lidstone_mle(input_word, 0.1))]))
-outputs.append(Output(15, [str(training_set.lidstone_mle('unseen-word', 0.1))]))
-outputs.append(Output(16, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.01)))]))
-outputs.append(Output(17, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 0.1)))]))
-outputs.append(Output(18, [str(perplexity(validation_set, lambda word: training_set.lidstone_mle(word, 1)))]))
+outputs.append(Output(10, [str(lidstone_training_set.unique_events_count())]))
+outputs.append(Output(11, [str(lidstone_training_set.count_word(input_word))]))
+outputs.append(Output(12, [str(lidstone_training_set.mle(input_word))]))
+outputs.append(Output(13, [str(lidstone_training_set.mle('unseen-word'))]))
+outputs.append(Output(14, [str(lidstone_training_set.lidstone_mle(input_word, 0.1))]))
+outputs.append(Output(15, [str(lidstone_training_set.lidstone_mle('unseen-word', 0.1))]))
+outputs.append(Output(16, [str(perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, 0.01)))]))
+outputs.append(Output(17, [str(perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, 0.1)))]))
+outputs.append(Output(18, [str(perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, 1)))]))
 
 
-# best_lidstone_lambda = find_best_lidstone_lambda(training_set, validation_set)
-best_lidstone_lambda = 0.05588
-optimal_lidstone_perplexity = perplexity(validation_set, lambda word: training_set.lidstone_mle(word, best_lidstone_lambda))
+# best_lidstone_lambda = find_best_lidstone_lambda(lidstone_training_set, validation_set)
+# print(best_lidstone_lambda)
+
+best_lidstone_lambda = 0.06 # 0.056397
+test_lidstone_perplexity = perplexity(validation_set, lambda word: lidstone_training_set.lidstone_mle(word, best_lidstone_lambda))
 
 outputs.append(Output(19, [str(best_lidstone_lambda)]))
-outputs.append(Output(20, [str(optimal_lidstone_perplexity)]))
+outputs.append(Output(20, [str(test_lidstone_perplexity)]))
 
 ##################################################################
 ##
@@ -169,15 +191,59 @@ outputs.append(Output(20, [str(optimal_lidstone_perplexity)]))
 
 num_of_50_percent = round(len(dev_words) / 2)
 
-training_set = Sample(dev_words[:num_of_50_percent])
+held_out_training_set = Sample(dev_words[:num_of_50_percent])
 held_out_set = Sample(dev_words[num_of_50_percent:])
-held_out_model = HeldOutModel(training_set, held_out_set)
+held_out_model = HeldOutModel(held_out_training_set, held_out_set)
 
-outputs.append(Output(21, [str(training_set.size)]))
+outputs.append(Output(21, [str(held_out_training_set.size)]))
 outputs.append(Output(22, [str(held_out_set.size)]))
 outputs.append(Output(23, [str(held_out_model.prob(input_word))]))
-outputs.append(Output(23, [str(held_out_model.prob('unseen-word'))]))
+outputs.append(Output(24, [str(held_out_model.prob('unseen-word'))]))
 
+##################################################################
+##
+##  TEST SET
+##
+##################################################################
 
+test_lines = read_file_lines(test_file_name)
+test_words = split_to_words(test_lines)
+test_set = Sample(test_words)
+
+outputs.append(Output(25, [str(len(test_words))]))
+
+test_lidstone_perplexity = perplexity(test_set, lambda word: lidstone_training_set.lidstone_mle(word, best_lidstone_lambda))
+outputs.append(Output(26, [str(test_lidstone_perplexity)]))
+
+test_held_out_perplexity = perplexity(test_set, lambda word: held_out_model.prob(word))
+outputs.append(Output(27, [str(test_held_out_perplexity)]))
+
+L_or_H = 'L' if test_lidstone_perplexity < test_held_out_perplexity else 'H'
+outputs.append(Output(28, [L_or_H]))
+
+##################################################################
+##
+##  TABLE
+##
+##################################################################
+
+rows = []
+
+for r in range(0, 10):
+    # lidstone
+    word = 'unseen-word' if r == 0 else next((w for w, count in lidstone_training_set.dict.items() if count == r), None)
+    p = lidstone_training_set.lidstone_mle(word, best_lidstone_lambda)
+    f_lidstone = p * lidstone_training_set.size
+    # held out
+    word = 'unseen-word' if r == 0 else  next((w for w, count in held_out_training_set.dict.items() if count == r), None)
+    p = held_out_model.prob(word)
+    f_held_out = p * held_out_training_set.size
+    N_r = held_out_model.N0 if r == 0 else len(held_out_model.count_to_words.get(r))
+    T_r = held_out_model.Tr(r)
+    # write row
+    rows.append(f'{r}\t{f_lidstone:.5f}\t{f_held_out:.5f}\t{N_r}\t{T_r}')
+
+outputs.append(Output(29, rows))
 
 write_outputs_to_file(output_file_name, outputs)
+
