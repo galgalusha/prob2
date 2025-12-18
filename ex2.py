@@ -37,6 +37,22 @@ class Sample:
     def lidstone_mle(self, word: str, _lambda: float) -> float:
         return (self.dict.get(word, 0) + _lambda) / (self.size + _lambda * self.vocab_size)
 
+class HeldOutModel:
+    def __init__(self, training_set: Sample, held_out_set: Sample):
+        self.training_set = training_set
+        self.held_out_set = held_out_set
+        self.r_to_Nr: dict[int, int] = {}
+        for word, count in training_set.dict.items():
+            if count not in self.r_to_Nr:
+                self.r_to_Nr[count] = 0
+            self.r_to_Nr[count] += 1
+        self.r_to_Nr[0] = VOCAB_SIZE - len(self.training_set.dict.keys())
+        # self.held_out_count_to_word = {count: word for word, count in held_out_set.dict.items()}
+
+    def prob(self, word: str) -> float:
+        r = self.training_set.count_word(word)
+        Nr = self.r_to_Nr[r]
+
 
 def perplexity(sample: Sample, prob_func) -> float:
     log_sum = 0
@@ -100,6 +116,12 @@ outputs.append(Output(6, [1/VOCAB_SIZE]))
 dev_lines = read_file_lines(dev_file_name)
 dev_words = split_to_words(dev_lines)
 
+##################################################################
+##
+##  Lidstone
+##
+##################################################################
+
 num_of_90_percent = round(len(dev_words) * 0.9)
 
 training_set = Sample(dev_words[:num_of_90_percent])
@@ -127,5 +149,23 @@ optimal_lidstone_perplexity = perplexity(validation_set, lambda word: training_s
 
 outputs.append(Output(19, [str(best_lidstone_lambda)]))
 outputs.append(Output(20, [str(optimal_lidstone_perplexity)]))
+
+##################################################################
+##
+##  HELD OUT
+##
+##################################################################
+
+num_of_50_percent = round(len(dev_words) / 2)
+
+training_set = Sample(dev_words[:num_of_50_percent])
+held_out_set = Sample(dev_words[num_of_50_percent:])
+
+outputs.append(Output(21, [str(training_set.size)]))
+outputs.append(Output(22, [str(held_out_set.size)]))
+
+def heldout_prob(training: Sample, held_out: Sample, word: str) -> float:
+    r = tra
+
 
 write_outputs_to_file(output_file_name, outputs)
